@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+    <title>高速交警数据处理中间件</title>
+    <link rel="stylesheet" href="https://a.amap.com/jsapi_demos/static/demo-center/css/demo-center.css"/>
+
+
+    <style>
+        html, body, #container {
+            height: 100%;
+            width: 100%;
+        }
+        .input-card .btn {
+            margin-right: 1.2rem;
+            width: 9rem;
+        }
+        .input-card .btn:last-child {
+            margin-right: 0;
+        }
+        .btn{
+            background-color: white;
+        }
+
+        .card{
+          z-index: 9999;
+          width: 300px;
+          height:200px;
+          overflow-y:scroll;
+          border-radius: 4px;
+          border: 1px solid #ebeef5;
+          background-color: #fff;
+          /* overflow: hidden; */
+          color: #303133;
+          transition: .3s;
+          box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
+          padding:15px;
+          line-height: 30px;
+          font-size: 14px;
+          color: #303133;
+          display: none;
+        }
+
+        .items {
+          border-bottom: 1px solid #ebeef5;
+        }
+        .items :hover{
+          cursor: pointer;
+          color: #409eff
+        }
+     
+    </style>
+</head>
+<body>
+<div id="container" class="map" tabindex="0">
+    <div style="z-index:1000;position:absolute;top:0px;left:55px;margin: 10px;">
+        <input id="searchCon" type="text" style="width:300px;height: 30px;"/>
+        <input id="queryBT" type="button" value="查询"/>
+        <input id="drawBt" style="margin-left: 10px;" type="button" value="框选"/>
+        <input id="clearBt" style="margin-left: 10px;" type="button" value="清除"/>
+    <div>
+		<div style="z-index:1000;position:fixed;top:0px;right:0px;margin: 10px;background:#ffffff">
+    	<h4>点击位置的经纬度：</h4>
+    	<div >
+      	<input type="text" readonly="true" id="lnglat">
+    	</div>
+    </div>
+    <div id="info">点击地图获取量测点，右键或双击左键结束测量</div>
+    <div class="card" id="card" ></div>
+</div>
+<div class="input-card" style="width:20rem;background-color:transparent;box-shadow:none">
+    <div class="input-item">
+        <input type="button" class="btn" id='default' value="测距" style='margin-right: 1rem;'/>
+    </div>
+</div>
+
+<script type="text/javascript" src='js/5Gjichang.js'></script>
+<script type="text/javascript"  src="https://webapi.amap.com/maps?v=1.4.15&key=be9d5cd4c6e4cd2007fd8339f835d733&plugin=AMap.RangingTool,AMap.MouseTool"></script>
+
+<script type="text/javascript" src='js/road_g4_line1.js'></script>
+<script type="text/javascript">
+    var map = new AMap.Map('container', {
+        zoom: 13	,
+        center: [114.845749,38.419468]
+    });
+
+    var style = [{
+        url: 'img/mass0.png',//检查站
+        anchor: new AMap.Pixel(3, 3),
+        size: new AMap.Size(40, 40)
+    }, {
+        url: 'img/mass1.png',//小区
+        anchor: new AMap.Pixel(4, 4),
+        size: new AMap.Size(10, 10)
+    }, {
+        url: 'img/mass2.png',//卡口
+        anchor: new AMap.Pixel(3, 3),
+        size: new AMap.Size(20, 20)
+    }, {
+        url: 'img/mass3.png',//公里桩1
+        anchor: new AMap.Pixel(4, 4),
+        size: new AMap.Size(15, 15)
+    }, {
+        url: 'img/mass4.png',//特殊标记1
+        anchor: new AMap.Pixel(4, 4),
+        size: new AMap.Size(20, 20)
+    },{
+        url: 'img/mass5.png',//收费站
+        anchor: new AMap.Pixel(4, 4),
+        size: new AMap.Size(30, 30)
+    },{
+        url: 'img/mass6.png',//车辆轨迹1
+        anchor: new AMap.Pixel(4, 4),
+        size: new AMap.Size(20, 20)
+    },{
+        url: 'img/mass7.png',//特殊标记2
+        anchor: new AMap.Pixel(4, 4),
+        size: new AMap.Size(15, 15)
+    },{
+        url: 'img/mass8.png',//车辆轨迹2
+        anchor: new AMap.Pixel(4, 4),
+        size: new AMap.Size(15, 15)
+    },{
+        url: 'img/mass9.png',//公里桩样式2
+        anchor: new AMap.Pixel(4, 4),
+        size: new AMap.Size(15, 15)
+    },{
+        url: 'img/mass10.png',//圆点
+        anchor: new AMap.Pixel(4, 4),
+        size: new AMap.Size(15, 15)
+    },{
+        url: 'img/mass11.png',//公里桩样式3
+        anchor: new AMap.Pixel(4, 4),
+        size: new AMap.Size(15, 15)
+    }
+    ];
+    map.on('click', function(e) {
+        document.getElementById("lnglat").value = e.lnglat.getLng() + ',' + e.lnglat.getLat()
+    });
+
+    //加载测距工具
+    //默认样式
+    ruler1 = new AMap.RangingTool(map);
+		//测量结束后右键取消测量
+		AMap.event.addListener(ruler1,"end",function(e){ 
+     ruler1.turnOff(); 
+    });        
+    //自定义样式
+    var startMarkerOptions= {
+        icon: new AMap.Icon({
+            size: new AMap.Size(19, 31),//图标大小
+            imageSize:new AMap.Size(19, 31),
+            image: "https://webapi.amap.com/theme/v1.3/markers/b/start.png"
+        })
+    };
+    var endMarkerOptions = {
+        icon: new AMap.Icon({
+            size: new AMap.Size(19, 31),//图标大小
+            imageSize:new AMap.Size(19, 31),
+            image: "https://webapi.amap.com/theme/v1.3/markers/b/end.png"
+        }),
+        offset: new AMap.Pixel(-9, -31)
+    };
+    var midMarkerOptions = {
+        icon: new AMap.Icon({
+            size: new AMap.Size(19, 31),//图标大小
+            imageSize:new AMap.Size(19, 31),
+            image: "https://webapi.amap.com/theme/v1.3/markers/b/mid.png"
+        }),
+        offset: new AMap.Pixel(-9, -31)
+    };
+   
+    var lineOptions = {
+        strokeStyle: "solid",
+        strokeColor: "#FF33FF",
+        strokeOpacity: 1,
+        strokeWeight: 2
+    };
+    var rulerOptions = {
+        startMarkerOptions: startMarkerOptions,
+        midMarkerOptions:midMarkerOptions,
+        endMarkerOptions: endMarkerOptions,
+        lineOptions: lineOptions
+    };
+    
+		// 创建折线实例1
+		var polyline_1 = new AMap.Polyline({
+		    path:path_1,  
+		    showDir:true,
+     		dirColor:'pink',
+        strokeColor: 'blue',   // 线颜色
+        strokeWeight: 6,           // 线宽
+		    lineJoin: 'round' // 折线拐点连接处样式
+		});
+		// 创建折线实例2
+		var polyline_2 = new AMap.Polyline({
+		    path:path_2,  
+		    showDir:true,
+     		dirColor:'pink',
+        strokeColor: 'red',   // 线颜色
+        strokeWeight: 6,           // 线宽
+		    lineJoin: 'round' // 折线拐点连接处样式
+		});
+		// 将折线添加至地图实例
+		map.add(polyline_1);
+		map.add(polyline_2);
+    //启用默认样式测距
+    document.getElementById('default').onclick=function(){
+        ruler1.turnOn();
+    }
+    //加载缩放工具
+		AMap.plugin(['AMap.ToolBar','AMap.Scale','AMap.OverView'],function(){
+            map.addControl(new AMap.ToolBar());
+            map.addControl(new AMap.Scale());
+            map.addControl(new AMap.OverView({isOpen:true}));
+    })
+    //加载CELL
+    var mass = new AMap.MassMarks(cells, {
+        opacity: 8,
+        zIndex: 111,
+        cursor: 'pointer',
+        style: style
+    });
+
+    var marker = new AMap.Marker({content: ' ', map: map});
+    var marker1 = "";
+
+    mass.on('mouseover', function (e) {
+        marker.setPosition(e.data.lnglat);
+        marker.setLabel({content: e.data.name})
+    });
+
+    mass.setMap(map);
+    function setStyle(multiIcon) {
+        if (multiIcon) {
+            mass.setStyle(style);
+        } else {
+            mass.setStyle(style[2]);
+        }
+    }
+    // document.querySelector('.items').onclick=function(e){
+    //   map.setZoomAndCenter(14, [e.target.dataset.lng, e.target.dataset.lat]);
+    // }
+
+     function clickData(data,data1){
+        map.remove(marker1);
+        map.setZoomAndCenter(16, [data, data1])
+
+        marker1 = new AMap.Marker({map: map, position:[data, data1]});
+        marker.setAnimation('AMAP_ANIMATION_BOUNCE');
+            setTimeout(() =>{
+              marker.setAnimation('AMAP_ANIMATION_NONE');
+            },2400)
+     }
+      
+    //搜索功能
+    document.getElementById('queryBT').onclick=function(){
+        //移除marker1
+        map.remove(marker1);
+        
+        var text = document.getElementById('searchCon').value;
+        if(text){
+          //显示面板
+          document.getElementById('card').style.display = 'block'
+          var marks = [];
+          mass.getData().forEach(element => {
+              if(-1!==element.name.indexOf(text)){
+                  marks.push(element);
+              }
+          });
+          if(marks.length !== 0){
+              let html = ''
+              marks.map(r=>{
+                html = html + `<div class="items" data-name="${r.name}" data-lng="${r.lnglat.lng}"  data-lat="${r.lnglat.lat}" onclick="clickData(${r.lnglat.lng},${r.lnglat.lat})">${r.name}</div>`
+              })
+              document.getElementById('card').innerHTML = html
+          
+              map.setCenter(marks[0].lnglat);
+              marker1 = new AMap.Marker({map: map, position:marks[0].lnglat});
+              marker.setAnimation('AMAP_ANIMATION_BOUNCE');
+              setTimeout(() =>{
+                marker.setAnimation('AMAP_ANIMATION_NONE');
+              },2400)
+          }else{
+            //恢复初始
+            map.remove(marker1);
+            document.getElementById('card').style.display = 'none'
+            map.setZoomAndCenter(12, [115.985377,39.396875])
+          }
+        }else{
+          //恢复初始
+          map.remove(marker1);
+          document.getElementById('card').style.display = 'none'
+          map.setZoomAndCenter(12, [115.985377,39.396875])
+        }
+		
+    }
+    var mouseTool;
+    var overlays = [];
+    //框选功能
+    document.getElementById('drawBt').onclick=function(){
+        mouseTool = new AMap.MouseTool(map); 
+    //监听draw事件可获取画好的覆盖物
+        
+        var marks = [];
+        mouseTool.on('draw',function(e){
+            overlays.push(e.obj);
+            console.log(overlays[0].getPath());
+             mass.getData().forEach(element => {
+               var a= AMap.GeometryUtil.isPointInRing(element.lnglat,overlays[0].getPath());
+               if(a){
+                   marks.push(element);
+               }
+           });
+           if(marks.length !== 0){
+            document.getElementById('card').style.display = 'block'
+              let html = ''
+              marks.map(r=>{
+                html = html + `<div class="items" data-name="${r.name}" data-lng="${r.lnglat.lng}"  data-lat="${r.lnglat.lat}" onclick="clickData(${r.lnglat.lng},${r.lnglat.lat})">${r.name}</div>`
+              })
+              document.getElementById('card').innerHTML = html
+          
+              map.setCenter(marks[0].lnglat);
+              marker1 = new AMap.Marker({map: map, position:marks[0].lnglat});
+              marker.setAnimation('AMAP_ANIMATION_BOUNCE');
+              setTimeout(() =>{
+                marker.setAnimation('AMAP_ANIMATION_NONE');
+              },2400)
+          }
+
+
+        });
+        mouseTool.polygon({
+                fillColor:'#00b0ff',
+                strokeColor:'#80d8ff'
+                //同Polygon的Option设置
+                });
+        console.log(overlays);   
+ 
+    }
+    //清除
+    document.getElementById('clearBt').onclick=function(){
+        if(mouseTool){
+          mouseTool.close(true);//关闭，并清除覆盖物
+          map.remove(overlays);
+        }
+        
+        overlays = [];
+        document.getElementById('card').innerHTML = '';
+        document.getElementById('card').style.display = 'none';
+
+    }
+
+
+      
+    
+</script>
+</body>
+</html>
